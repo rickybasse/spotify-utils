@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import base64
 import concurrent.futures
@@ -13,6 +13,7 @@ import urllib.request
 import webbrowser
 from datetime import datetime, timedelta
 
+DEBUG = os.getenv("DEBUG", 0)
 OAUTH_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 OAUTH_TOKEN_URL = "https://accounts.spotify.com/api/token"
 API = "https://api.spotify.com/v1"
@@ -29,6 +30,7 @@ IGNORE = {
     "62TD7509VQIxUe4WpwO0s3", # Johann Pachelbel
     "2wOqMjp9TyABvtHdOSOTUS", # Ludwig van Beethoven
     "4NJhFmfw43RLBLjQvxDuRS", # Wolfgang Amadeus Mozart
+    "39FC9x5PaTNYHp5hwlaY4q", # Niccolò Paganini
 }
 
 date = os.getenv("DATE", (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
@@ -98,7 +100,7 @@ def get_artists(url):
 
 def get_albums(url):
     resp = request(url)
-    return [(album["id"], album["release_date"]) for album in resp["items"]]
+    return [(album["id"], album["release_date"], album["name"], album["artists"]) for album in resp["items"]]
 
 def get_tracks(url):
     resp = request(url)
@@ -118,7 +120,7 @@ if __name__ == "__main__":
         while (url):
             batch, url = get_artists(url)
             artists.update(batch)
-            print(f"{len(batch)=}, {len(artists)=}, {url=}")
+            if DEBUG: print(f"{len(batch)=}, {len(artists)=}, {url=}")
 
         dump_pickle(artists, "artists.pkl")
 
@@ -129,19 +131,11 @@ if __name__ == "__main__":
     # get new albums from those artists
     albums = load_pickle("albums.pkl")
     if not albums:
-        def fetch_artists_albums(artist):
-            # albums are ordered by `release_date`, so one call is enough to get latest
+        for artist in artists:
             url = f"{API}/artists/{artist}/albums?offset=0&limit=50&include_groups=album,single"
-            return {album[0] for album in get_albums(url) if album[1] >= date}
-
-        start = time.time()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:  # 4 threads hit the rate limiting
-           futures = {executor.submit(fetch_artists_albums, artist): artist for artist in artists}
-           for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
-               albums.update(future.result())
-               print(f"{i}: {len(albums)=} | total {time.time() - start:.2f}s")
-        total = time.time() - start
-        print(f"completed in {total:.2f}s ({total/60:.1f}m)")
+            new_albums = [a for a in get_albums(url) if a[1] >= date]
+            albums.update({a[0] for a in new_albums})
+            if DEBUG: [print(f"* {len(albums)=} ~ {a[2]}: {[(art['name'], art['id']) for art in a[3]]}") for a in new_albums]
 
         dump_pickle(albums, "albums.pkl")
 
