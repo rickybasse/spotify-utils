@@ -48,15 +48,18 @@ class AuthHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
     def log_message(self, format, *args): pass
 
-def get_access_token(server, refresh_token=None):
+def get_access_token(refresh_token=None):
     """ handles the authentication flow, if `refresh_token` is not provided it requires interaction with browser """
     if refresh_token:
+        print(f"refresh_token provided, getting albums released after {date}")
         data = urllib.parse.urlencode({ "refresh_token": refresh_token, "grant_type": "refresh_token" }).encode()
         req = urllib.request.Request(OAUTH_TOKEN_URL, data=data)
         req.add_header("Authorization", f"Basic {base64.b64encode(f'{client_id}:{client_secret}'.encode()).decode()}")
         with urllib.request.urlopen(req) as f:
             return json.loads(f.read().decode())["access_token"]
 
+    server = http.server.HTTPServer(("127.0.0.1", 6969), AuthHandler)
+    print(f"server up, getting albums released after {date}")
     response_type = "code"
     redirect_uri = "http://127.0.0.1:6969"
     scope = "user-library-read playlist-read-private playlist-modify-private"
@@ -108,9 +111,7 @@ def get_tracks(url):
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("127.0.0.1", 6969), AuthHandler)
-    print(f"server up, getting albums released after {date}")
-    access_token = get_access_token(server, refresh_token)
+    access_token = get_access_token(refresh_token)
 
     # get artists from liked tracks
     artists = load_pickle("artists.pkl")

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       env_vars:
-        description: 'space-separated env vars, e.g. "DEBUG=1 PYTHONUNBUFFERED=1"'
+        description: 'space-separated env vars, e.g. "DEBUG=1"'
         required: false
         default: ''
 jobs:
