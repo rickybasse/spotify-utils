@@ -23,7 +23,7 @@ given a `PLAYLIST_ID` and a cut-off `DATE`:
 - looks for albums from those artists that have been released after the cut-off `DATE`, i.e. new music from them
 - clears the playlist associated with `PLAYLIST_ID` and adds all the tracks from the new releases found
 
-I personally run this program every friday morning CET to get a fresh batch of new music released during the week from artists I like.
+I personally run this program [every friday morning CET](.github/workflows/friday.yml) to get a fresh batch of new music released during the week from artists I like.
 
 to find out the `PLAYLIST_ID` of the playlist you want to use just copy its share link and get the route parameter:
 ```

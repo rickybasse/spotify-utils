@@ -1,0 +1,25 @@
+name: friday
+
+on:
+  schedule:
+    - cron: '0 7 * * 5'
+  workflow_dispatch:
+    inputs:
+      env_vars:
+        description: 'space-separated env vars, e.g. "DEBUG=1 PYTHONUNBUFFERED=1"'
+        required: false
+        default: ''
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - env:
+          CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
+          PLAYLIST_ID: ${{ secrets.SPOTIFY_PLAYLIST_ID }}
+          PYTHONUNBUFFERED: 1
+        run: ${{ inputs.env_vars }} DATE=$(date -d "last saturday" +%Y-%m-%d) ./friday.py
+
