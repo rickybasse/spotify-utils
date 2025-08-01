@@ -26,8 +26,9 @@ IGNORE = {
     "1Uff91EOsvd99rtAupatMP", # Claude Debussy
     "459INk8vcC0ebEef82WjIK", # Erik Satie
     "7y97mc3bZRFXzT2szRM4L4", # Frédéric Chopin
-    "5aIqB5nVVvmFsvSdExz408", # Johann Sebastian Bach
     "62TD7509VQIxUe4WpwO0s3", # Johann Pachelbel
+    "5aIqB5nVVvmFsvSdExz408", # Johann Sebastian Bach
+    "5goS0v24Fc1ydjCKQRwtjM", # Johann Strauss II
     "2wOqMjp9TyABvtHdOSOTUS", # Ludwig van Beethoven
     "4NJhFmfw43RLBLjQvxDuRS", # Wolfgang Amadeus Mozart
     "39FC9x5PaTNYHp5hwlaY4q", # Niccolò Paganini
@@ -172,4 +173,3 @@ if __name__ == "__main__":
              resp = json.loads(f.read().decode())
 
     print("fresh tracks ready to be listened to!")
-

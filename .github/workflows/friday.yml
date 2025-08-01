@@ -22,4 +22,3 @@ jobs:
           PLAYLIST_ID: ${{ secrets.PLAYLIST_ID }}
           PYTHONUNBUFFERED: 1
         run: ${{ inputs.env_vars }} DATE=$(date -d "last saturday" +%Y-%m-%d) ./friday.py
-

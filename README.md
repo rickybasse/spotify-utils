@@ -43,4 +43,3 @@ refresh_token: <refresh_token_from_the_auth_flow>
 # following runs of the program
 $ CLIENT_ID=<client_id> CLIENT_SECRET=<client_secret> REFRESH_TOKEN=<refresh_token_from_first_run> PLAYLIST_ID=<playlist_id> DATE=2025-07-04 ./friday.py
 ```
-
