@@ -24,11 +24,13 @@ IGNORE = {
     "2QOIawHpSlOwXDvSqQ9YJR", # Antonio Vivaldi
     "6uRJnvQ3f8whVnmeoecv5Z", # Berlin Philharmoniker
     "1Uff91EOsvd99rtAupatMP", # Claude Debussy
+    "1nIUhcKHnK6iyumRyoV68C", # Ennio Morricone
     "459INk8vcC0ebEef82WjIK", # Erik Satie
     "7y97mc3bZRFXzT2szRM4L4", # Frédéric Chopin
     "62TD7509VQIxUe4WpwO0s3", # Johann Pachelbel
     "5aIqB5nVVvmFsvSdExz408", # Johann Sebastian Bach
     "5goS0v24Fc1ydjCKQRwtjM", # Johann Strauss II
+    "3dRfiJ2650SZu6GbydcHNb", # John Williams
     "2wOqMjp9TyABvtHdOSOTUS", # Ludwig van Beethoven
     "4NJhFmfw43RLBLjQvxDuRS", # Wolfgang Amadeus Mozart
     "39FC9x5PaTNYHp5hwlaY4q", # Niccolò Paganini
@@ -104,7 +106,7 @@ def get_artists(url):
 
 def get_albums(url):
     resp = request(url)
-    return [(album["id"], album["release_date"], album["name"], album["artists"]) for album in resp["items"]]
+    return [(album["id"], album["release_date"], album["name"], album["artists"], album["album_type"]) for album in resp["items"]]
 
 def get_tracks(url):
     resp = request(url)
@@ -132,13 +134,17 @@ if __name__ == "__main__":
 
     # get new albums from those artists
     albums = load_pickle("albums.pkl")
+    new_singles = []
+    new_albums = []
     if not albums:
         for artist in artists:
             url = f"{API}/artists/{artist}/albums?offset=0&limit=50&include_groups=album,single"
-            new_albums = [a for a in get_albums(url) if a[1] >= date]
-            albums.update({a[0] for a in new_albums})
-            if DEBUG: [print(f"* {len(albums)=} ~ {a[2]}: {[(art['name'], art['id']) for art in a[3]]}") for a in new_albums]
+            new_releases = [a for a in get_albums(url) if a[1] >= date]
+            new_singles.extend([r for r in new_releases if r[4] == "single"])
+            new_albums.extend([r for r in new_releases if r[4] == "album"])
+            if DEBUG: [print(f"* {r[4]} | {r[2]}: {[(art['name'], art['id']) for art in r[3]]}") for r in new_releases]
 
+        albums = set([r[0] for r in [*new_singles, *new_albums]])
         dump_pickle(albums, "albums.pkl")
 
     print(f"new albums: {len(albums)}")
