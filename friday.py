@@ -54,7 +54,7 @@ class AuthHandler(http.server.BaseHTTPRequestHandler):
 def get_access_token(refresh_token=None):
     """ handles the authentication flow, if `refresh_token` is not provided it requires interaction with browser """
     if refresh_token:
-        print(f"refresh_token provided, getting albums released after {date}")
+        print(f"refresh_token provided")
         data = urllib.parse.urlencode({ "refresh_token": refresh_token, "grant_type": "refresh_token" }).encode()
         req = urllib.request.Request(OAUTH_TOKEN_URL, data=data)
         req.add_header("Authorization", f"Basic {base64.b64encode(f'{client_id}:{client_secret}'.encode()).decode()}")
@@ -62,7 +62,7 @@ def get_access_token(refresh_token=None):
             return json.loads(f.read().decode())["access_token"]
 
     server = http.server.HTTPServer(("127.0.0.1", 6969), AuthHandler)
-    print(f"server up, getting albums released after {date}")
+    print(f"server up")
     response_type = "code"
     redirect_uri = "http://127.0.0.1:6969"
     scope = "user-library-read playlist-read-private playlist-modify-private"
@@ -89,7 +89,7 @@ def dump_pickle(data, file):
     with open(file, "wb") as f: pickle.dump(data, f)
 
 
-def request(url, data=None):
+def request(url, access_token, data=None):
     req = urllib.request.Request(url, data)
     req.add_header("Authorization", f"Bearer {access_token}")
     try:
@@ -99,30 +99,30 @@ def request(url, data=None):
             print("retry-after:", int(e.headers.get("Retry-After"))/60/60, "h")
             raise
 
-def get_artists(url):
+def get_artists(url, access_token):
     """ returns only the first artist in the artists list """
-    resp = request(url)
+    resp = request(url, access_token)
     return {song["track"]["artists"][0]["id"] for song in resp["items"]}, resp["next"]
 
-def get_albums(url):
-    resp = request(url)
+def get_albums(url, access_token):
+    resp = request(url, access_token)
     return [(album["id"], album["release_date"], album["name"], album["artists"], album["album_type"]) for album in resp["items"]]
 
-def get_tracks(url):
-    resp = request(url)
+def get_tracks(url, access_token):
+    resp = request(url, access_token)
     return [song["uri"] for album in resp["albums"] for song in album["tracks"]["items"]]
 
 
 if __name__ == "__main__":
     access_token = get_access_token(refresh_token)
+    print(f"getting albums released after {date}")
 
     # get artists from liked tracks
     artists = load_pickle("artists.pkl")
     if not artists:
-        # TODO: check if tracks are ordered, so we can save the last processed track and just get the newer ones
         url = f"{API}/me/tracks?offset=0&limit=50"
         while (url):
-            batch, url = get_artists(url)
+            batch, url = get_artists(url, access_token)
             artists.update(batch)
             if DEBUG: print(f"{len(batch)=}, {len(artists)=}, {url=}")
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     if not albums:
         for artist in artists:
             url = f"{API}/artists/{artist}/albums?offset=0&limit=50&include_groups=album,single"
-            new_releases = [a for a in get_albums(url) if a[1] >= date]
+            new_releases = [a for a in get_albums(url, access_token) if a[1] >= date]
             new_singles.extend([r for r in new_releases if r[4] == "single"])
             new_albums.extend([r for r in new_releases if r[4] == "album"])
             if DEBUG: [print(f"* {r[4]} | {r[2]}: {[(art['name'], art['id']) for art in r[3]]}") for r in new_releases]
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     albums_l = list(albums)
     for chunk in [albums_l[i:i+20] for i in range(0, len(albums_l), 20)]:
         url = f"{API}/albums?ids={",".join(list(chunk))}"
-        tracks.extend(get_tracks(url))
+        tracks.extend(get_tracks(url, access_token))
 
     print(f"new tracks: {len(tracks)}")
 
