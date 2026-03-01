@@ -16,9 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-          PLAYLIST_ID: ${{ secrets.PLAYLIST_ID }}
+          S_CI: ${{ secrets.S_CI }}
+          S_CS: ${{ secrets.S_CS }}
+          S_RT: ${{ secrets.S_RT }}
+          S_PI: ${{ secrets.S_PI }}
           PYTHONUNBUFFERED: 1
         run: ${{ inputs.env_vars }} DATE=$(date -d "last saturday" +%Y-%m-%d) ./friday.py

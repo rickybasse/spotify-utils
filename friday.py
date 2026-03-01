@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
 
-import base64
-import concurrent.futures
-import http.server
-import json
-import os
-import pickle
-import random
-import time
-import urllib.parse
-import urllib.request
-import webbrowser
+import json, os, urllib.request
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from _auth import spotify_access_token
+from _utils import DEBUG, API, load_pickle, dump_pickle, request
 
-DEBUG = os.getenv("DEBUG", 0)
-OAUTH_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
-OAUTH_TOKEN_URL = "https://accounts.spotify.com/api/token"
-API = "https://api.spotify.com/v1"
 IGNORE = {
     # don't get me wrong I love classical music as much as any other genre
     # but there is so much music being released every week associated with
@@ -37,145 +26,78 @@ IGNORE = {
 }
 
 date = os.getenv("DATE", (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
-client_id = os.getenv("CLIENT_ID")
-client_secret = os.getenv("CLIENT_SECRET")
-refresh_token = os.getenv("REFRESH_TOKEN")
-playlist_id = os.getenv("PLAYLIST_ID")
+client_id = os.getenv("S_CI")
+client_secret = os.getenv("S_CS")
+refresh_token = os.getenv("S_RT")
+playlist_id = os.getenv("S_PI")
 
+@dataclass(frozen=True)
+class Album:
+    id: str
+    date: str
+    name: str
+    artists: list
+    type: str
 
-class AuthHandler(http.server.BaseHTTPRequestHandler):
-    """ accepts the redirect from Spotify and parses the auth code """
-    def do_GET(self):
-        self.server.auth_code = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)['code'][0]
-        self.send_response(200)
-        self.end_headers()
-    def log_message(self, format, *args): pass
+def get_artists(url, token):
+    r = request(url, token)
+    return {s["track"]["artists"][0]["id"] for s in r["items"]}, r["next"]
 
-def get_access_token(refresh_token=None):
-    """ handles the authentication flow, if `refresh_token` is not provided it requires interaction with browser """
-    if refresh_token:
-        print(f"refresh_token provided")
-        data = urllib.parse.urlencode({ "refresh_token": refresh_token, "grant_type": "refresh_token" }).encode()
-        req = urllib.request.Request(OAUTH_TOKEN_URL, data=data)
-        req.add_header("Authorization", f"Basic {base64.b64encode(f'{client_id}:{client_secret}'.encode()).decode()}")
-        with urllib.request.urlopen(req) as f:
-            return json.loads(f.read().decode())["access_token"]
+def get_albums(url, token):
+    r = request(url, token)
+    return [Album(a["id"], a["release_date"], a["name"], a["artists"], a["album_type"]) for a in r["items"]]
 
-    server = http.server.HTTPServer(("127.0.0.1", 6969), AuthHandler)
-    print(f"server up")
-    response_type = "code"
-    redirect_uri = "http://127.0.0.1:6969"
-    scope = "user-library-read playlist-read-private playlist-modify-private"
-    state = random.random()
-    webbrowser.open(f"{OAUTH_AUTHORIZE_URL}?{response_type=}&{client_id=}&{scope=}&{redirect_uri=}&{state=}".replace("'", ""))
-    server.handle_request()
-
-    data = urllib.parse.urlencode({ "redirect_uri": redirect_uri, "code": server.auth_code, "grant_type": "authorization_code" }).encode()
-    req = urllib.request.Request(OAUTH_TOKEN_URL, data=data)
-    req.add_header("Authorization", f"Basic {base64.b64encode(f'{client_id}:{client_secret}'.encode()).decode()}")
-    with urllib.request.urlopen(req) as f:
-        resp = json.loads(f.read().decode())
-        print(f"refresh_token: {resp['refresh_token']}")
-        return resp["access_token"]
-
-
-def load_pickle(file):
-    if os.path.exists(file):
-        print(f"> found `{file}`")
-        with open(file, "rb") as f: return pickle.load(f)
-    else: return set()
-
-def dump_pickle(data, file): 
-    with open(file, "wb") as f: pickle.dump(data, f)
-
-
-def request(url, access_token, data=None):
-    req = urllib.request.Request(url, data)
-    req.add_header("Authorization", f"Bearer {access_token}")
-    try:
-        with urllib.request.urlopen(req) as f: return json.loads(f.read().decode())
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            print("retry-after:", int(e.headers.get("Retry-After"))/60/60, "h")
-            raise
-
-def get_artists(url, access_token):
-    """ returns only the first artist in the artists list """
-    resp = request(url, access_token)
-    return {song["track"]["artists"][0]["id"] for song in resp["items"]}, resp["next"]
-
-def get_albums(url, access_token):
-    resp = request(url, access_token)
-    return [(album["id"], album["release_date"], album["name"], album["artists"], album["album_type"]) for album in resp["items"]]
-
-def get_tracks(url, access_token):
-    resp = request(url, access_token)
-    return [song["uri"] for album in resp["albums"] for song in album["tracks"]["items"]]
-
+def get_tracks(url, token):
+    r = request(url, token)
+    return [s["uri"] for a in r["albums"] for s in a["tracks"]["items"]]
 
 if __name__ == "__main__":
-    access_token = get_access_token(refresh_token)
+    access_token = spotify_access_token(client_id, client_secret, refresh_token)
     print(f"getting albums released after {date}")
 
-    # get artists from liked tracks
-    artists = load_pickle("artists.pkl")
+    artists = load_pickle("spotify_artists.pkl")
     if not artists:
         url = f"{API}/me/tracks?offset=0&limit=50"
-        while (url):
+        while url:
             batch, url = get_artists(url, access_token)
             artists.update(batch)
             if DEBUG: print(f"{len(batch)=}, {len(artists)=}, {url=}")
-
-        dump_pickle(artists, "artists.pkl")
+        dump_pickle(artists, "spotify_artists.pkl")
 
     print(f"liked artists: {len(artists)}")
     artists -= IGNORE
     print(f"liked artist - ignored: {len(artists)}")
 
-    # get new albums from those artists
-    albums = load_pickle("albums.pkl")
-    new_singles = []
-    new_albums = []
+    albums = load_pickle("spotify_albums.pkl")
+    new_singles, new_albums = [], []
     if not albums:
         for artist in artists:
             url = f"{API}/artists/{artist}/albums?offset=0&limit=50&include_groups=album,single"
-            new_releases = [a for a in get_albums(url, access_token) if a[1] >= date]
-            new_singles.extend([r for r in new_releases if r[4] == "single"])
-            new_albums.extend([r for r in new_releases if r[4] == "album"])
-            if DEBUG: [print(f"* {r[4]} | {r[2]}: {[(art['name'], art['id']) for art in r[3]]}") for r in new_releases]
-
-        albums = set([r[0] for r in [*new_singles, *new_albums]])
-        dump_pickle(albums, "albums.pkl")
-
+            new_releases = [a for a in get_albums(url, access_token) if a.date >= date]
+            new_singles.extend([r for r in new_releases if r.type == "single"])
+            new_albums.extend([r for r in new_releases if r.type == "album"])
+            if DEBUG: [print(f"* {r.type} | {r.name}: {[(art['name'], art['id']) for art in r.artists]}") for r in new_releases]
+        albums = dict.fromkeys(r.id for r in [*new_singles, *new_albums])
+        dump_pickle(albums, "spotify_albums.pkl")
     print(f"new albums: {len(albums)}")
 
-    # get tracks from new albums
     tracks = []
     albums_l = list(albums)
     for chunk in [albums_l[i:i+20] for i in range(0, len(albums_l), 20)]:
-        url = f"{API}/albums?ids={",".join(list(chunk))}"
+        url = f"{API}/albums?ids={','.join(chunk)}"
         tracks.extend(get_tracks(url, access_token))
-
     print(f"new tracks: {len(tracks)}")
 
-    # clear the `friday` playlist
     data = json.dumps({"uris": []}).encode()
-    url = f"{API}/playlists/{playlist_id}/tracks"
-    req = urllib.request.Request(url, data, method="PUT")
+    req = urllib.request.Request(f"{API}/playlists/{playlist_id}/tracks", data, method="PUT")
     req.add_header("Content-Type", "application/json")
     req.add_header("Authorization", f"Bearer {access_token}")
     urllib.request.urlopen(req)
-
     print("cleaned playlist")
 
-    # add tracks from new albums to `friday` playlist
     for chunk in [tracks[i:i+100] for i in range(0, len(tracks), 100)]:
-        data = json.dumps({ "uris": chunk }).encode()
-        url = f"{API}/playlists/{playlist_id}/tracks"
-        req = urllib.request.Request(url, data)
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {access_token}")
-        with urllib.request.urlopen(req) as f:
-             resp = json.loads(f.read().decode())
-
+        data = json.dumps({"uris": chunk}).encode()
+        req = urllib.request.Request(f"{API}/playlists/{playlist_id}/tracks", data)
+        req.add_header("Content-Type", "application/json"); req.add_header("Authorization", f"Bearer {access_token}")
+        urllib.request.urlopen(req)
     print("fresh tracks ready to be listened to!")

@@ -1,3 +1,5 @@
 .DS_Store
-albums.pkl
-artists.pkl
+.secrets
+*.pkl
+*.md
+!README.md
