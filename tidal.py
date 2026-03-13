@@ -35,6 +35,7 @@ albums_pi = os.getenv("T_PI_ALBUMS")
 eps_pi = os.getenv("T_PI_EPS")
 singles_pi = os.getenv("T_PI_SINGLES")
 date = os.getenv("DATE", (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
+today = datetime.now().strftime("%Y-%m-%d")
 
 @dataclass(frozen=True)
 class Album:
@@ -134,7 +135,7 @@ if __name__ == "__main__":
             except urllib.error.HTTPError as e:
                 if e.code == 404: continue
                 raise
-            new_releases = [a for a in artist_albums if a.release_date and a.release_date >= date]
+            new_releases = [a for a in artist_albums if a.release_date and date <= a.release_date <= today]
             new_singles.extend([r for r in new_releases if r.type == "SINGLE"])
             new_eps.extend([r for r in new_releases if r.type == "EP"])
             new_albums.extend([r for r in new_releases if r.type == "ALBUM"])

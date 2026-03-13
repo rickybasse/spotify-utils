@@ -1,6 +1,6 @@
-# `spotify-utils`
+# `tidal-utils`
 
-a set of programs to automate Spotify (and now Tidal) stuff
+a set of programs to automate Tidal (and previously Spotify) stuff
 
 all the programs require `python` but no extra dependencies
 
